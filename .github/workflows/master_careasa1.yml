@@ -1,6 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy Node.js app to Azure Web App - careasa1
 
 on:
@@ -13,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read # This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +26,12 @@ jobs:
           npm run build --if-present
           npm run test --if-present
 
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+      - name: Create deployment package (exclude unnecessary files)
+        run: |
+          mkdir deployment-package
+          shopt -s extglob
+          cp -r !(deployment-package|node_modules|.git|release.zip) deployment-package/
+          zip -r release.zip deployment-package
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -44,7 +45,7 @@ jobs:
     environment:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    
+
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
@@ -53,12 +54,15 @@ jobs:
 
       - name: Unzip artifact for deployment
         run: unzip release.zip
-      
-      - name: 'Deploy to Azure Web App'
+
+      - name: Wait to avoid SCM restart conflict
+        run: sleep 15
+
+      - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'careasa1'
           slot-name: 'Production'
-          package: .
+          package: deployment-package
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_39F0E1E1EC0949F6857EB3D7CA6E2E91 }}
