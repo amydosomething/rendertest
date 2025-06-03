@@ -15,24 +15,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '22.x'
 
-      - name: Install dependencies and build
+      - name: Install root and frontend dependencies + build
         run: |
           npm install
+          npm install --prefix frontend
           npm run build
 
-      - name: Prepare deployment package
+      - name: Prepare deployable artifact
         run: |
-          mkdir deployment-package
-          shopt -s extglob
-          cp -r !(deployment-package|node_modules|.git|release.zip) deployment-package/
-          zip -r release.zip deployment-package
+          mkdir deployment
+          cp package.json deployment/
+          cp -r backend deployment/
+          cp -r frontend/build deployment/frontend-build
+          cp .env deployment/ || echo ".env not found, skipping"
+          cd deployment && zip -r ../release.zip .
 
-      - name: Upload artifact for deployment
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
@@ -46,15 +49,15 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
-      - name: Download artifact from build job
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: node-app
 
-      - name: Unzip artifact for deployment
-        run: unzip release.zip
+      - name: Unzip artifact
+        run: unzip release.zip -d .
 
-      - name: Wait to avoid SCM conflict
+      - name: Sleep to avoid SCM container race
         run: sleep 15
 
       - name: Deploy to Azure Web App
@@ -63,5 +66,5 @@ jobs:
         with:
           app-name: 'careasa1'
           slot-name: 'Production'
-          package: deployment-package
+          package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_39F0E1E1EC0949F6857EB3D7CA6E2E91 }}
